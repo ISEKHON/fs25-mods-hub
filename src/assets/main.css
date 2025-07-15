@@ -1,0 +1,76 @@
+
+
+/* Enhanced Base Responsive Styles */
+:root {
+  --primary: #27ae60;
+  --primary-dark: #219653;
+  --secondary: #f39c12;
+  --accent: #3498db;
+  --dark: #1e272e;
+  --darker: #171e25;
+  --light: #f8f9fa;
+  --gray: #e0e0e0;
+  --text: #333;
+  --text-light: #7f8c8d;
+  --card-bg: #ffffff;
+  --shadow: 0 10px 20px rgba(0,0,0,0.08);
+  --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --radius: 12px;
+  --border: 1px solid rgba(0,0,0,0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  font-size: 16px;
+}
+
+/* Responsive font sizes */
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Responsive touch targets */
+button, .btn, a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 768px) {
+  button, .btn, a {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* Improve readability on small screens */
+@media (max-width: 480px) {
+  p, li {
+    line-height: 1.5;
+  }
+}
+
+/* Add all other base styles from the original design here */
