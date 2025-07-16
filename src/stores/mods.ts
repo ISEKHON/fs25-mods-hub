@@ -78,6 +78,9 @@ export const useModsStore = defineStore('mods', () => {
             'Improved physics simulation'
           ]
         }
+      ],
+      reviews: [
+        
       ]
     },
     {

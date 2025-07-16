@@ -157,16 +157,36 @@ const handleNavClick = () => {
               <span>Upload</span>
             </RouterLink>
           </li>
+          <li>
+            <RouterLink to="/login" @click="handleNavClick">
+              <i class="fas fa-sign-in-alt"></i>
+              <span>Login</span>
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/register" @click="handleNavClick">
+              <i class="fas fa-user-plus"></i>
+              <span>Register</span>
+            </RouterLink>
+          </li>
         </ul>
         <div class="mobile-menu-footer">
-          <RouterLink to="/upload" class="mobile-upload-btn" @click="handleNavClick">
-            <i class="fas fa-plus"></i>
-            <span>Upload Mod</span>
+          <RouterLink to="/register" class="mobile-upload-btn" @click="handleNavClick">
+            <i class="fas fa-user-plus"></i>
+            <span>Join Now</span>
           </RouterLink>
         </div>
       </nav>
       
       <div class="header-actions" :class="{ 'actions-open': isMobileMenuOpen }">
+        <RouterLink to="/login" class="btn btn-outline" @click="handleNavClick">
+          <i class="fas fa-sign-in-alt"></i> 
+          <span class="btn-text">Login</span>
+        </RouterLink>
+        <RouterLink to="/register" class="btn btn-primary" @click="handleNavClick">
+          <i class="fas fa-user-plus"></i> 
+          <span class="btn-text">Register</span>
+        </RouterLink>
         <RouterLink to="/upload" class="btn btn-secondary" @click="handleNavClick">
           <i class="fas fa-cloud-upload-alt"></i> 
           <span class="btn-text">Upload</span>
@@ -350,6 +370,30 @@ nav a:hover::after, nav a.router-link-active::after {
   background: var(--primary-dark);
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-primary {
+  background: var(--primary);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-outline {
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+}
+
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
 }
 
 .btn-secondary {

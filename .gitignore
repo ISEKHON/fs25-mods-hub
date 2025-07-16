@@ -28,3 +28,11 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+api/.env.example
+api/package.json
+api/config/supabase.js
+api/database/schema.sql
+api/middleware/common.js
+api/middleware/rateLimiter.js
+api/utils/email.js
+api/validation/schemas.js

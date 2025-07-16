@@ -1,20 +1,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Mod } from '@/types'
+import ReviewCard from './ReviewCard.vue'
+import ReviewForm from './ReviewForm.vue'
 
 const props = defineProps<{
   mod: Mod
 }>()
 
 const activeTab = ref('features')
+const showReviewForm = ref(false)
 
-const tabs = [
+const tabs = computed(() => [
   { id: 'features', label: 'Features' },
   { id: 'requirements', label: 'Requirements' },
   { id: 'installation', label: 'Installation' },
   { id: 'changelog', label: 'Changelog' },
-  { id: 'reviews', label: `Reviews (${props.mod.ratingCount})` }
-]
+  { id: 'reviews', label: `Reviews (${props.mod.reviews?.length || 0})` }
+])
 
 const installationSteps = [
   'Download the mod package (usually a .zip file)',
@@ -28,12 +31,55 @@ const changeTab = (tabId: string) => {
   activeTab.value = tabId
 }
 
+const openReviewForm = () => {
+  showReviewForm.value = true
+}
+
+const closeReviewForm = () => {
+  showReviewForm.value = false
+}
+
+const handleReviewSubmitted = (review: any) => {
+  // TODO: Add review to store
+  console.log('New review submitted:', review)
+  closeReviewForm()
+}
+
 const requirements = computed(() => [
   { icon: 'laptop', title: 'Minimum Requirements', text: props.mod.requirements.min },
   { icon: 'desktop', title: 'Recommended Requirements', text: props.mod.requirements.recommended },
   { icon: 'gamepad', title: 'Supported Input', text: 'Keyboard + Mouse, Gamepad' },
   { icon: 'code-branch', title: 'Compatibility', text: 'Works with all official maps' }
 ])
+
+const sortedReviews = computed(() => {
+  if (!props.mod.reviews) return []
+  return [...props.mod.reviews].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+})
+
+const averageRating = computed(() => {
+  if (!props.mod.reviews || props.mod.reviews.length === 0) return 0
+  const sum = props.mod.reviews.reduce((acc, review) => acc + review.rating, 0)
+  return sum / props.mod.reviews.length
+})
+
+const ratingDistribution = computed(() => {
+  if (!props.mod.reviews) return { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  props.mod.reviews.forEach(review => {
+    distribution[review.rating as keyof typeof distribution]++
+  })
+  
+  return distribution
+})
+
+const getPercentage = (count: number) => {
+  if (!props.mod.reviews || props.mod.reviews.length === 0) return 0
+  return (count / props.mod.reviews.length) * 100
+}
 </script>
 
 <template>
@@ -121,36 +167,76 @@ const requirements = computed(() => [
     
     <div class="mod-tab-content" :class="{ active: activeTab === 'reviews' }">
       <div class="mod-reviews">
-        <h3>User Reviews</h3>
-        <div class="review-list">
-          <div class="no-reviews" v-if="mod.ratingCount === 0">
-            <i class="fas fa-comment-alt"></i>
-            <p>No reviews yet. Be the first to review this mod!</p>
-            <button class="btn">
-              <i class="fas fa-pen"></i> Write a Review
-            </button>
-          </div>
-          <div v-else>
-            <!-- In a real app, you would map through actual reviews here -->
-            <div class="review-item">
-              <div class="review-header">
-                <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="User">
-                <div class="review-author">
-                  <strong>ModEnthusiast123</strong>
-                  <div class="review-rating">
-                    <i v-for="n in 5" :key="n" class="fas fa-star"></i>
-                  </div>
-                </div>
-                <span class="review-date">2 weeks ago</span>
+        <div class="reviews-header">
+          <h3>User Reviews</h3>
+          <button 
+            v-if="mod.reviews && mod.reviews.length > 0"
+            class="btn btn-primary" 
+            @click="openReviewForm"
+          >
+            <i class="fas fa-pen"></i>
+            Write a Review
+          </button>
+        </div>
+        
+        <div class="reviews-overview" v-if="mod.reviews && mod.reviews.length > 0">
+          <div class="rating-summary">
+            <div class="average-rating">
+              <div class="rating-score">{{ averageRating.toFixed(1) }}</div>
+              <div class="rating-stars">
+                <i 
+                  v-for="star in 5" 
+                  :key="star" 
+                  class="fas fa-star"
+                  :class="{ filled: star <= Math.round(averageRating) }"
+                ></i>
               </div>
-              <div class="review-content">
-                <p>This is one of the best tractor mods I've used. The physics are incredibly realistic and the detail is amazing!</p>
+              <div class="rating-count">{{ mod.reviews.length }} {{ mod.reviews.length === 1 ? 'review' : 'reviews' }}</div>
+            </div>
+            
+            <div class="rating-breakdown">
+              <div v-for="rating in [5, 4, 3, 2, 1]" :key="rating" class="rating-bar">
+                <span class="rating-label">{{ rating }}</span>
+                <i class="fas fa-star star-icon"></i>
+                <div class="bar-container">
+                  <div 
+                    class="bar-fill" 
+                    :style="{ width: getPercentage(ratingDistribution[rating]) + '%' }"
+                  ></div>
+                </div>
+                <span class="rating-count">{{ ratingDistribution[rating] }}</span>
               </div>
             </div>
           </div>
         </div>
+        
+        <div class="review-list">
+          <div class="no-reviews" v-if="!mod.reviews || mod.reviews.length === 0">
+            <i class="fas fa-comment-alt"></i>
+            <p>No reviews yet. Be the first to review this mod!</p>
+            <button class="btn btn-primary" @click="openReviewForm">
+              <i class="fas fa-pen"></i> Write a Review
+            </button>
+          </div>
+          <div v-else class="reviews-container">
+            <ReviewCard 
+              v-for="review in sortedReviews" 
+              :key="review.id" 
+              :review="review" 
+            />
+          </div>
+        </div>
       </div>
     </div>
+    
+    <!-- Review Form Modal -->
+    <ReviewForm
+      v-if="showReviewForm"
+      :mod-id="mod.id"
+      :mod-title="mod.title"
+      @review-submitted="handleReviewSubmitted"
+      @close="closeReviewForm"
+    />
   </div>
 </template>
 
@@ -378,43 +464,205 @@ const requirements = computed(() => [
   box-shadow: var(--shadow);
 }
 
+.reviews-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.reviews-header h3 {
+  margin: 0;
+  color: var(--darker);
+  font-size: 1.5rem;
+}
+
+.reviews-overview {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--light);
+  border-radius: 12px;
+}
+
+.rating-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.average-rating {
+  text-align: center;
+}
+
+.rating-score {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--darker);
+  line-height: 1;
+}
+
+.rating-stars {
+  margin: 0.5rem 0;
+}
+
+.rating-stars i {
+  font-size: 1.25rem;
+  color: #ddd;
+  margin: 0 0.125rem;
+}
+
+.rating-stars i.filled {
+  color: #fbbf24;
+}
+
+.rating-count {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.rating-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rating-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.rating-label {
+  width: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.star-icon {
+  color: #fbbf24;
+  font-size: 0.875rem;
+}
+
+.bar-container {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  transition: width 0.3s ease;
+}
+
+.rating-bar .rating-count {
+  width: 20px;
+  text-align: right;
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+
+.reviews-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .no-reviews {
   text-align: center;
-  padding: 2rem;
+  padding: 3rem 2rem;
+  background: rgba(var(--primary-rgb), 0.02);
+  border-radius: 12px;
+  border: 2px dashed rgba(var(--primary-rgb), 0.1);
 }
 
 .no-reviews i {
   font-size: 3rem;
   color: var(--primary);
   margin-bottom: 1rem;
+  opacity: 0.7;
 }
 
 .no-reviews p {
   color: var(--text-light);
   margin-bottom: 1.5rem;
+  font-size: 1.1rem;
 }
 
-.review-item {
-  padding: 1.5rem 0;
-  border-bottom: 1px solid var(--gray);
-}
-
-.review-item:last-child {
-  border-bottom: none;
-}
-
-.review-header {
-  display: flex;
+.no-reviews .btn {
+  font-size: 0.95rem;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.15);
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1.2;
 }
 
-.review-header img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
+.no-reviews .btn i {
+  font-size: 0.95rem;
+  color: white;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.no-reviews .btn:hover {
+  box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.25);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .reviews-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .rating-summary {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
+  .rating-breakdown {
+    max-width: 300px;
+    margin: 0 auto;
+  }
+
+  .mod-reviews {
+    padding: 1rem;
+  }
 }
 
 .review-author {

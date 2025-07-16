@@ -8,6 +8,10 @@ import DevelopersView from '@/views/DevelopersView.vue'
 import PrivacyPolicy from '@/views/PrivacyPolicy.vue'
 import ContactPage from '@/views/ContactPage.vue'
 import TermsConditions from '@/views/TermsConditions.vue'
+import LoginView from '@/views/LoginView.vue'
+import RegisterView from '@/views/RegisterView.vue'
+import DashboardView from '@/views/DashboardView.vue'
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -52,16 +56,36 @@ const router = createRouter({
       name: 'developers',
       component: DevelopersView
     },
-  {
-    path: '/privacy',
-    name: 'PrivacyPolicy',
-    component: PrivacyPolicy
-  },
-  {
-    path: '/terms',
-    name: 'TermsConditions',
-    component: TermsConditions
-  }
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: RegisterView
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: DashboardView
+    },
+    {
+      path: '/privacy',
+      name: 'PrivacyPolicy',
+      component: PrivacyPolicy
+    },
+    {
+      path: '/terms',
+      name: 'TermsConditions',
+      component: TermsConditions
+    }
   ]
 })
 

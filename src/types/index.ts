@@ -19,6 +19,23 @@ export interface Mod {
   }
   changelog?: ModChangelog[]
   pricing: ModPricing
+  reviews?: ModReview[]
+}
+
+export interface ModReview {
+  id: string
+  userId: string
+  userName: string
+  userAvatar?: string
+  rating: number
+  title: string
+  comment: string
+  createdAt: string
+  updatedAt?: string
+  helpful: number
+  notHelpful: number
+  verified: boolean
+  version: string
 }
 
 export interface ModPricing {
