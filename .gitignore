@@ -35,4 +35,4 @@ api/database/schema.sql
 api/middleware/common.js
 api/middleware/rateLimiter.js
 api/utils/email.js
-api/validation/schemas.js
+api/*
