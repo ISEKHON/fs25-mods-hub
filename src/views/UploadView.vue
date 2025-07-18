@@ -1,5 +1,54 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { categoriesApi } from '@/services/api'
+
+const router = useRouter()
+const authStore = useAuthStore()
+const categories = ref([])
+
+// Check if user is authenticated and fetch categories
+onMounted(async () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+
+  // Auto-populate author field with logged-in user's display name
+  if (authStore.user?.displayName) {
+    formData.author = authStore.user.displayName
+  } else if (authStore.user?.username) {
+    formData.author = authStore.user.username
+  } else if (authStore.user?.name) {
+    formData.author = authStore.user.name
+  }
+  
+  // Fetch categories from API
+  try {
+    const data = await categoriesApi.getAll()
+    if (data && Array.isArray(data)) {
+      categories.value = data
+    } else {
+      // Fallback to hardcoded categories if API fails
+      categories.value = [
+        { id: '6877794b0013464f504f', name: 'Vehicles' },
+        { id: '6877794c00277f0e58cc', name: 'Maps' },
+        { id: '6877794d003c280b50bf', name: 'Tools & Equipment' },
+        { id: '687779580015bdde5c61', name: 'Scripts & Gameplay' }
+      ]
+    }
+  } catch (error) {
+    console.error('Failed to fetch categories:', error)
+    // Fallback to hardcoded categories
+    categories.value = [
+      { id: '6877794b0013464f504f', name: 'Vehicles' },
+      { id: '6877794c00277f0e58cc', name: 'Maps' },
+      { id: '6877794d003c280b50bf', name: 'Tools & Equipment' },
+      { id: '687779580015bdde5c61', name: 'Scripts & Gameplay' }
+    ]
+  }
+})
 
 const isSubmitting = ref(false)
 const showSuccess = ref(false)
@@ -17,6 +66,7 @@ const formData = reactive({
   // Download Information
   downloadLink: '',
   fileSize: '',
+  fileSizeUnit: 'MB',
   
   // Media Links
   mainImage: '',
@@ -54,12 +104,6 @@ const formData = reactive({
   knownIssues: '',
   credits: ''
 })
-
-const categories = [
-  'Vehicles', 'Harvesters', 'Tools', 'Maps', 'Animals', 
-  'Buildings', 'Scripts', 'Trailers', 'Equipment', 
-  'Implements', 'Forestry', 'Mowers', 'Seeders', 'Plows', 'Cultivators'
-]
 
 const compatibilityOptions = [
   'Multiplayer Compatible',
@@ -115,10 +159,55 @@ const toggleCompatibility = (option: string) => {
   }
 }
 
+// Convert user-friendly file size to bytes
+const convertFileSizeToBytes = (sizeNumber: string, unit: string): number => {
+  const number = parseFloat(sizeNumber)
+  if (isNaN(number) || number < 0) return 0
+  
+  switch (unit.toUpperCase()) {
+    case 'KB': return Math.round(number * 1024)
+    case 'MB': return Math.round(number * 1024 * 1024)
+    case 'GB': return Math.round(number * 1024 * 1024 * 1024)
+    default: return Math.round(number)
+  }
+}
+
 const submitMod = async () => {
   if (!isFormValid.value) {
     showError.value = true
     errorMessage.value = 'Please fill in all required fields'
+    // Scroll to top to show error message
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+    return
+  }
+
+  // Additional validation check for boolean fields
+  if (!formData.isOriginalWork) {
+    showError.value = true
+    errorMessage.value = 'Please confirm this is your original work or you have permission'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+
+  if (!formData.hasPermission) {
+    showError.value = true
+    errorMessage.value = 'Please confirm you have the right to upload and distribute this mod'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+
+  if (!formData.agreeToTerms) {
+    showError.value = true
+    errorMessage.value = 'You must agree to the terms of service and community guidelines'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
     return
   }
 
@@ -126,56 +215,143 @@ const submitMod = async () => {
   showError.value = false
 
   try {
-    // Here you would typically send the data to your backend
-    // For now, we'll simulate a successful submission
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    showSuccess.value = true
-    
-    // Reset form after successful submission
-    setTimeout(() => {
-      Object.keys(formData).forEach(key => {
-        if (Array.isArray(formData[key])) {
-          formData[key] = key === 'features' ? ['', '', '', ''] : 
-                         key === 'additionalImages' ? ['', '', '', ''] : []
-        } else if (typeof formData[key] === 'object' && formData[key] !== null && !Array.isArray(formData[key])) {
-          if (key === 'pricing') {
-            formData[key] = {
-              type: 'free',
-              price: '',
-              currency: 'USD',
-              originalPrice: '',
-              discountPercentage: 0,
-              saleEndDate: ''
-            }
-          } else {
-            Object.keys(formData[key]).forEach(subKey => {
-              formData[key][subKey] = ''
-            })
-          }
-        } else if (typeof formData[key] === 'boolean') {
-          formData[key] = false
-        } else {
-          formData[key] = ''
-        }
+    // Prepare submission data
+    const submissionData = {
+      title: formData.title,
+      description: formData.description,
+      category_id: formData.category,
+      author_name: formData.author,
+      contact_email: formData.contactEmail,
+      contact_discord: formData.contactDiscord,
+      version: formData.version,
+      download_url: formData.downloadLink,
+      file_size: convertFileSizeToBytes(formData.fileSize, formData.fileSizeUnit),
+      screenshots: [formData.mainImage, ...formData.additionalImages].filter(img => img && img.trim() !== ''),
+      video_link: formData.videoLink,
+      tags: formData.features.filter(feature => feature.trim() !== ''),
+      pricing_type: formData.pricing.type,
+      price: formData.pricing.type === 'paid' ? parseFloat(formData.pricing.price) : undefined,
+      currency: formData.pricing.currency,
+      original_price: formData.pricing.originalPrice ? parseFloat(formData.pricing.originalPrice) : undefined,
+      discount_percentage: formData.pricing.discountPercentage,
+      sale_end_date: formData.pricing.saleEndDate,
+      compatibility: formData.compatibilityTags,
+      minimum_requirements: formData.requirements.min,
+      recommended_requirements: formData.requirements.recommended,
+      installation_notes: formData.installationNotes,
+      changelog: formData.changelog,
+      is_original_work: formData.isOriginalWork === true,
+      has_permission: formData.hasPermission === true,
+      agree_to_terms: formData.agreeToTerms === true
+    }
+
+    // Debug logging
+    console.log('Submitting data:', {
+      agree_to_terms: submissionData.agree_to_terms,
+      is_original_work: submissionData.is_original_work,
+      has_permission: submissionData.has_permission
+    })
+    console.log('Form data checkboxes:', {
+      agreeToTerms: formData.agreeToTerms,
+      isOriginalWork: formData.isOriginalWork,
+      hasPermission: formData.hasPermission
+    })
+    console.log('Full submission data:', submissionData)
+
+    const response = await fetch('http://localhost:3001/api/submissions/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authStore.getAuthHeaders()
+      },
+      body: JSON.stringify(submissionData)
+    })
+
+    const data = await response.json()
+
+    if (data.success) {
+      showSuccess.value = true
+      
+      // Scroll to top to show success message
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
       })
-      showSuccess.value = false
-    }, 3000)
+      
+      // Reset form after successful submission
+      setTimeout(() => {
+        Object.keys(formData).forEach(key => {
+          if (Array.isArray(formData[key])) {
+            formData[key] = key === 'features' ? ['', '', '', ''] : 
+                           key === 'additionalImages' ? ['', '', '', ''] : []
+          } else if (typeof formData[key] === 'object' && formData[key] !== null && !Array.isArray(formData[key])) {
+            if (key === 'pricing') {
+              formData[key] = {
+                type: 'free',
+                price: '',
+                currency: 'USD',
+                originalPrice: '',
+                discountPercentage: 0,
+                saleEndDate: ''
+              }
+            } else {
+              Object.keys(formData[key]).forEach(subKey => {
+                formData[key][subKey] = ''
+              })
+            }
+          } else if (typeof formData[key] === 'boolean') {
+            formData[key] = false
+          } else {
+            formData[key] = ''
+          }
+        })
+        showSuccess.value = false
+      }, 3000)
+    } else {
+      showError.value = true
+      errorMessage.value = data.message || 'Submission failed'
+      
+      // Scroll to top to show error message
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      })
+    }
     
   } catch (error) {
+    console.error('Submission error:', error)
     showError.value = true
-    errorMessage.value = 'Failed to submit mod. Please try again.'
+    errorMessage.value = 'Submission failed. Please check your connection.'
+    
+    // Scroll to top to show error message
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
   } finally {
     isSubmitting.value = false
   }
+}
+
+// Debug function to check form state
+const debugFormState = () => {
+  console.log('Current form state:', {
+    isFormValid: isFormValid.value,
+    agreeToTerms: formData.agreeToTerms,
+    isOriginalWork: formData.isOriginalWork,
+    hasPermission: formData.hasPermission,
+    title: formData.title,
+    description: formData.description,
+    contactEmail: formData.contactEmail
+  })
 }
 </script>
 
 <template>
   <div class="upload-view">
     <div class="upload-header">
-      <h1>Submit Your Mod</h1>
-      <p>Submit your FS25 mod for admin review and approval. All mods are manually reviewed to ensure quality and compatibility.</p>
+      <h1>Submit Your PC Mod</h1>
+      <p>Submit your FS25 PC mod for admin review and approval. All mods are manually reviewed to ensure quality and compatibility. This platform is exclusively for PC mods.</p>
     </div>
 
     <!-- Success Message -->
@@ -217,7 +393,7 @@ const submitMod = async () => {
             <label for="category">Category *</label>
             <select id="category" v-model="formData.category" required>
               <option value="">Select Category</option>
-              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
           </div>
 
@@ -239,8 +415,15 @@ const submitMod = async () => {
               v-model="formData.author" 
               type="text" 
               placeholder="Your name or team name"
+              readonly
+              class="readonly-field"
+              title="This field is automatically filled with your profile information"
               required
             >
+            <small class="field-hint">
+              <i class="fas fa-info-circle"></i>
+              This is automatically filled from your profile. You can update it in your profile settings.
+            </small>
           </div>
         </div>
 
@@ -275,12 +458,26 @@ const submitMod = async () => {
 
           <div class="form-group">
             <label for="fileSize">File Size</label>
-            <input 
-              id="fileSize"
-              v-model="formData.fileSize" 
-              type="text" 
-              placeholder="e.g., 45.2 MB"
-            >
+            <div class="file-size-input">
+              <input 
+                id="fileSize"
+                v-model="formData.fileSize" 
+                type="number" 
+                step="0.1"
+                min="0"
+                placeholder="90"
+                class="size-number"
+              >
+              <select 
+                v-model="formData.fileSizeUnit" 
+                class="size-unit"
+              >
+                <option value="KB">KB</option>
+                <option value="MB">MB</option>
+                <option value="GB">GB</option>
+              </select>
+            </div>
+            <small>Enter the file size and select the unit (KB, MB, or GB)</small>
           </div>
         </div>
       </div>
@@ -472,7 +669,8 @@ const submitMod = async () => {
         </div>
 
         <div class="form-group">
-          <label>Compatibility Tags</label>
+          <label>PC Compatibility Features</label>
+          <p class="field-description">Select which PC features and compatibility your mod supports:</p>
           <div class="checkbox-grid">
             <label 
               v-for="option in compatibilityOptions" 
@@ -583,16 +781,39 @@ const submitMod = async () => {
             I have the right to upload and distribute this mod *
           </label>
 
-          <label class="checkbox-item">
+          <label class="checkbox-item important-checkbox">
             <input type="checkbox" v-model="formData.agreeToTerms" required>
             <span class="checkmark"></span>
-            I agree to the terms of service and community guidelines *
+            <strong>I agree to the terms of service and community guidelines *</strong>
           </label>
         </div>
       </div>
 
+      <!-- Validation Messages -->
+      <div v-if="!isFormValid" class="validation-notice">
+        <h4><i class="fas fa-exclamation-triangle"></i> Please complete all required fields:</h4>
+        <ul>
+          <li v-if="!formData.title">• Mod title is required</li>
+          <li v-if="!formData.description">• Description is required</li>
+          <li v-if="!formData.category">• Category is required</li>
+          <li v-if="!formData.version">• Version is required</li>
+          <li v-if="!formData.author">• Author name is required</li>
+          <li v-if="!formData.downloadLink">• Download link is required</li>
+          <li v-if="!formData.mainImage">• Main image is required</li>
+          <li v-if="!formData.contactEmail">• Contact email is required</li>
+          <li v-if="!formData.isOriginalWork">• Please confirm this is your original work</li>
+          <li v-if="!formData.hasPermission">• Please confirm you have permission to distribute</li>
+          <li v-if="!formData.agreeToTerms">• You must agree to the terms and conditions</li>
+        </ul>
+      </div>
+
       <!-- Submit Button -->
       <div class="form-submit">
+        <!-- Debug button for testing -->
+        <button type="button" @click="debugFormState" class="btn btn-secondary" style="margin-right: 1rem;">
+          <i class="fas fa-bug"></i> Debug Form State
+        </button>
+        
         <button 
           type="submit" 
           class="btn btn-primary btn-large"
@@ -674,6 +895,34 @@ const submitMod = async () => {
   opacity: 0.9;
 }
 
+/* Validation Notice */
+.validation-notice {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.validation-notice h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.validation-notice ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.validation-notice li {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
 /* Form Styling */
 .upload-form {
   background: white;
@@ -749,6 +998,62 @@ const submitMod = async () => {
   margin-top: 0.25rem;
   font-size: 0.85rem;
   color: var(--text-light);
+}
+
+/* Readonly field styling */
+.readonly-field {
+  background-color: #f8f9fa !important;
+  color: var(--text-light) !important;
+  cursor: not-allowed !important;
+  border-color: #e9ecef !important;
+}
+
+.readonly-field:focus {
+  box-shadow: none !important;
+  border-color: #e9ecef !important;
+}
+
+.field-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-style: italic;
+}
+
+.field-hint i {
+  color: var(--primary);
+}
+
+/* File Size Input Styling */
+.file-size-input {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.file-size-input .size-number {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-size-input .size-unit {
+  width: 80px;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.file-size-input .size-unit:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
 }
 
 .form-group textarea {
@@ -845,6 +1150,20 @@ const submitMod = async () => {
   font-weight: bold;
   font-size: 16px;
   line-height: 1;
+}
+
+/* Important checkbox styling */
+.important-checkbox {
+  background: #f8f9fa;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.important-checkbox strong {
+  color: var(--primary);
+  font-size: 1.05rem;
 }
 
 /* Radio Button Styling */
@@ -1021,6 +1340,16 @@ const submitMod = async () => {
   transform: translateY(-1px);
 }
 
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
 .btn-add {
   background: #27ae60;
   color: white;
@@ -1149,6 +1478,15 @@ const submitMod = async () => {
 
   .form-section {
     padding: 1rem;
+  }
+
+  .file-size-input {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .file-size-input .size-unit {
+    width: 100%;
   }
 
   .form-section h2 {

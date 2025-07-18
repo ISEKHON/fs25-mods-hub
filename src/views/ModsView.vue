@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useModsStore } from '@/stores/mods'
+import { useModsStore } from '@/stores/mods-new'
 import { useRoute } from 'vue-router'
 import ModCard from '@/components/mods/ModCard.vue'
 
@@ -12,8 +12,10 @@ const sortOption = ref('Newest')
 const filterBy = ref('All') // New filter for rating, downloads, etc.
 
 // Initialize store when component mounts
-onMounted(() => {
-  modsStore.updateCategoryCounts()
+onMounted(async () => {
+  if (modsStore.mods.length === 0) {
+    await modsStore.initialize()
+  }
   // Set search query from URL parameter if it exists
   if (route.query.search) {
     searchQuery.value = route.query.search as string
@@ -25,9 +27,11 @@ onMounted(() => {
 })
 
 // Watch route changes to reinitialize when needed  
-watch(() => route.fullPath, () => {
+watch(() => route.fullPath, async () => {
   if (route.name === 'mods') {
-    modsStore.updateCategoryCounts()
+    if (modsStore.mods.length === 0) {
+      await modsStore.initialize()
+    }
     // Update search query from URL parameter
     if (route.query.search) {
       searchQuery.value = route.query.search as string

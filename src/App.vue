@@ -1,15 +1,31 @@
 <script setup lang="ts">
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { onMounted, watch, nextTick } from 'vue'
+import { useModsStore } from '@/stores/mods-new'
+import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/shared/AppHeader.vue'
 import AppFooter from '@/components/shared/AppFooter.vue'
 import BackToTop from '@/components/shared/BackToTop.vue'
+import TokenExpiredNotification from '@/components/shared/TokenExpiredNotification.vue'
 
 const router = useRouter()
 const route = useRoute()
+const modsStore = useModsStore()
+const authStore = useAuthStore()
 
-// Handle browser navigation properly
-onMounted(() => {
+// Initialize app data
+onMounted(async () => {
+  // Initialize authentication from storage
+  authStore.loadFromStorage()
+  
+  // Initialize mods and categories from API
+  try {
+    await modsStore.initialize()
+    console.log('✅ App initialized with API data')
+  } catch (error) {
+    console.error('❌ Failed to initialize app data:', error)
+  }
+  
   // Listen for browser navigation events
   window.addEventListener('popstate', async () => {
     await nextTick()
@@ -33,6 +49,7 @@ onMounted(() => {
     
     <AppFooter />
     <BackToTop />
+    <TokenExpiredNotification />
   </div>
 </template>
 

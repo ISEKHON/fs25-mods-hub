@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const form = reactive({
   email: '',
@@ -35,17 +37,18 @@ const handleLogin = async () => {
   isLoading.value = true
 
   try {
-    // TODO: Replace with actual API call
-    console.log('Login attempt:', form)
+    const result = await authStore.login(form.email, form.password)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // For now, just redirect to home
-    router.push('/')
+    if (result.success) {
+      // Redirect to home
+      router.push('/')
+    } else {
+      errors.value.push(result.message || 'Login failed')
+    }
     
   } catch (error) {
-    errors.value.push('Login failed. Please check your credentials.')
+    console.error('Login error:', error)
+    errors.value.push('Login failed. Please check your connection.')
   } finally {
     isLoading.value = false
   }

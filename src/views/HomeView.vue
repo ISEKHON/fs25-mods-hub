@@ -1,23 +1,32 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useModsStore } from '@/stores/mods'
+import { ref, computed, onMounted } from 'vue'
+import { useModsStore } from '@/stores/mods-new'
 import ModCard from '@/components/mods/ModCard.vue'
 import CategoryCard from '@/components/categories/CategoryCard.vue'
 
 const modsStore = useModsStore()
-const featuredMods = modsStore.getFeaturedMods()
-const categories = modsStore.categories
+const featuredMods = computed(() => modsStore.featuredMods)
+const categories = computed(() => modsStore.categories)
+const totalMods = computed(() => modsStore.totalMods)
+
+// Fetch featured mods when component mounts
+onMounted(async () => {
+  if (modsStore.categories.length === 0) {
+    await modsStore.initialize()
+  }
+  await modsStore.fetchFeaturedMods()
+})
 
 const heroButtons = [
   { text: 'Browse Mods', icon: 'download', link: '/mods' },
   { text: 'View Categories', icon: 'tags', link: '/categories' }
 ]
 
-const stats = [
-  { number: '1,258+', label: 'Mods Available' },
+const stats = computed(() => [
+  { number: `${totalMods.value || 0}+`, label: 'Mods Available' },
   { number: '524K+', label: 'Downloads' },
   { number: '24/7', label: 'Active Support' }
-]
+])
 </script>
 
 <template>

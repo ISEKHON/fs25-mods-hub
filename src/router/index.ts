@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/HomeView.vue'
 import ModsView from '@/views/ModsView.vue'
 import CategoriesView from '@/views/CategoriesView.vue'
 import UploadView from '@/views/UploadView.vue'
 import ModPreviewView from '@/views/ModPreviewView.vue'
 import DevelopersView from '@/views/DevelopersView.vue'
+import UserProfileView from '@/views/UserProfileView.vue'
 import PrivacyPolicy from '@/views/PrivacyPolicy.vue'
 import ContactPage from '@/views/ContactPage.vue'
 import TermsConditions from '@/views/TermsConditions.vue'
@@ -12,6 +14,7 @@ import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
+import AdminView from '@/views/AdminView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -77,6 +80,37 @@ const router = createRouter({
       component: DashboardView
     },
     {
+      path: '/admin',
+      name: 'admin',
+      component: AdminView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/user/:username',
+      name: 'user-profile',
+      component: UserProfileView,
+      props: true
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: UserProfileView,
+      beforeEnter: (to, from, next) => {
+        // Check if user is authenticated and redirect to their profile
+        const token = localStorage.getItem('token')
+        const user = localStorage.getItem('user')
+        
+        if (token && user) {
+          const userData = JSON.parse(user)
+          // Redirect to user's profile with their username
+          next(`/user/${userData.username || userData.name?.toLowerCase().replace(/\s+/g, '-') || 'user'}`)
+        } else {
+          // Not authenticated, redirect to login
+          next('/login')
+        }
+      }
+    },
+    {
       path: '/privacy',
       name: 'PrivacyPolicy',
       component: PrivacyPolicy
@@ -89,13 +123,21 @@ const router = createRouter({
   ]
 })
 
-// Add a simple guard to ensure proper navigation
+// Add a guard to handle authentication and token expiration
 router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+  
+  // Clear token expired message when navigating to login
+  if (to.name === 'login') {
+    authStore.clearTokenExpiredMessage()
+  }
+  
   // For browser navigation, ensure proper component initialization
   if (from.name && to.name) {
     // Small delay for browser navigation
     await new Promise(resolve => setTimeout(resolve, 50))
   }
+  
   next()
 })
 

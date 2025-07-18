@@ -20,6 +20,7 @@ export interface Mod {
   changelog?: ModChangelog[]
   pricing: ModPricing
   reviews?: ModReview[]
+  featured?: boolean
 }
 
 export interface ModReview {

@@ -57,8 +57,8 @@ const handleRegister = async () => {
     return
   }
 
-  if (form.password.length < 6) {
-    errors.value.push('Password must be at least 6 characters long')
+  if (form.password.length < 8) {
+    errors.value.push('Password must be at least 8 characters long')
     return
   }
 
@@ -75,17 +75,34 @@ const handleRegister = async () => {
   isLoading.value = true
 
   try {
-    // TODO: Replace with actual API call
-    console.log('Register attempt:', { ...form, password: '[HIDDEN]', confirmPassword: '[HIDDEN]' })
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // For now, just redirect to login
-    router.push('/login')
+    const response = await fetch('http://localhost:3001/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: form.username,
+        email: form.email,
+        password: form.password
+      })
+    })
+
+    const data = await response.json()
+
+    if (data.success) {
+      // Store token in localStorage
+      localStorage.setItem('token', data.data.token)
+      localStorage.setItem('user', JSON.stringify(data.data.user))
+      
+      // Redirect to home
+      router.push('/')
+    } else {
+      errors.value.push(data.message || 'Registration failed')
+    }
     
   } catch (error) {
-    errors.value.push('Registration failed. Please try again.')
+    console.error('Registration error:', error)
+    errors.value.push('Registration failed. Please check your connection.')
   } finally {
     isLoading.value = false
   }

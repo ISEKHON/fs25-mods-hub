@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { useModsStore } from '@/stores/mods'
+import { useModsStore } from '@/stores/mods-new'
+import { onMounted } from 'vue'
 import CategoryCard from '@/components/categories/CategoryCard.vue'
 
 const modsStore = useModsStore()
+
+// Initialize store when component mounts
+onMounted(async () => {
+  if (modsStore.mods.length === 0) {
+    await modsStore.initialize()
+  }
+})
 </script>
 
 <template>

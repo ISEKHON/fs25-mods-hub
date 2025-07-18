@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Featured Mods Test</title>
+</head>
+<body>
+    <h1>Featured Mods API Test</h1>
+    <button onclick="testFeaturedMods()">Test Featured Mods API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testFeaturedMods() {
+            try {
+                const response = await fetch('http://localhost:3001/api/mods?featured=true&limit=6');
+                const data = await response.json();
+                
+                document.getElementById('result').innerHTML = `
+                    <h2>API Response:</h2>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    <h3>Featured Mods Count: ${data.data.mods.length}</h3>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h2>Error:</h2>
+                    <p style="color: red;">${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

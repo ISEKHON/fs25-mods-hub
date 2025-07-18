@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useModsStore } from '@/stores/mods'
+import { useModsStore } from '@/stores/mods-new'
 import ModGallery from '@/components/mods/ModGallery.vue'
 import ModTabs from '@/components/mods/ModTabs.vue'
 import ModCard from '@/components/mods/ModCard.vue'
@@ -11,19 +11,25 @@ const modsStore = useModsStore()
 
 // Initialize store when component mounts
 onMounted(async () => {
-  modsStore.updateCategoryCounts()
+  // Initialize the store if not already done
+  if (modsStore.mods.length === 0) {
+    await modsStore.initialize()
+  }
   
-  // Give some time for the store to initialize, then stop loading if no mod found
-  setTimeout(() => {
-    if (!mod.value) {
+  // Try to fetch the specific mod if not found in store
+  if (!mod.value && route.params.id) {
+    const fetchedMod = await modsStore.fetchModById(route.params.id as string)
+    if (!fetchedMod) {
       isLoading.value = false
     }
-  }, 1000) // Increased timeout to 1 second for better reliability
+  } else {
+    isLoading.value = false
+  }
 })
 
 const isLoading = ref(true)
 const mod = computed(() => {
-  const foundMod = modsStore.getModById(route.params.id as string)
+  const foundMod = modsStore.mods.find(m => m.id === route.params.id)
   return foundMod
 })
 
@@ -39,13 +45,17 @@ const activeImageIndex = ref(0)
 const showPurchaseModal = ref(false)
 
 // Reset component state when route parameters change
-watch(() => route.params.id, () => {
+watch(() => route.params.id, async () => {
   isLoading.value = true
   activeTab.value = 'features'
   activeImageIndex.value = 0
   showPurchaseModal.value = false
-  // Ensure store is initialized when route changes
-  modsStore.updateCategoryCounts()
+  
+  // Try to fetch the specific mod if not found in store
+  if (route.params.id && !modsStore.mods.find(m => m.id === route.params.id)) {
+    await modsStore.fetchModById(route.params.id as string)
+  }
+  isLoading.value = false
 }, { immediate: true })
 
 const relatedMods = computed(() => {
