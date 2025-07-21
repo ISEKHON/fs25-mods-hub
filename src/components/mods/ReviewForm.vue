@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { apiCall } from '@/services/api'
+import { useModsStore } from '@/stores/mods-new'
 
 const props = defineProps<{
   modId: string
@@ -10,6 +12,8 @@ const emit = defineEmits<{
   reviewSubmitted: [review: any]
   close: []
 }>()
+
+const modsStore = useModsStore()
 
 const form = reactive({
   rating: 0,
@@ -72,26 +76,36 @@ const submitReview = async () => {
   isSubmitting.value = true
   
   try {
-    // TODO: Replace with actual API call
-    const newReview = {
-      id: Date.now().toString(),
+    const reviewData = await apiCall<{
+      id: string
+      username: string
+      rating: number
+      review_text: string
+      created_at: string
+    }>('/reviews', {
+      method: 'POST',
+      body: JSON.stringify({
+        mod_id: props.modId,
+        rating: form.rating,
+        review_text: form.comment.trim()
+      })
+    })
+
+    // Emit the review data to parent component
+    emit('reviewSubmitted', {
+      id: reviewData.id,
       userId: 'current-user-id',
-      userName: form.anonymous ? 'Anonymous User' : 'Current User',
-      userAvatar: form.anonymous ? undefined : 'https://via.placeholder.com/48',
-      rating: form.rating,
+      userName: reviewData.username || 'Current User',
+      userAvatar: '/default-avatar.svg', // Will be updated from database
+      rating: reviewData.rating,
       title: form.title,
-      comment: form.comment.trim(),
-      createdAt: new Date().toISOString(),
+      comment: reviewData.review_text,
+      createdAt: reviewData.created_at,
       helpful: 0,
       notHelpful: 0,
-      verified: true, // Assuming verified purchase
-      version: '1.0.0' // TODO: Get actual mod version
-    }
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    emit('reviewSubmitted', newReview)
+      verified: true,
+      version: '1.0.0'
+    })
     
     // Reset form
     form.rating = 0
@@ -99,8 +113,17 @@ const submitReview = async () => {
     form.comment = ''
     form.anonymous = false
     
+    // Close the form
+    emit('close')
+    
+    // Refresh the mod data to get updated reviews and rating
+    await modsStore.refreshModReviews(props.modId)
+    
+    alert('Review submitted successfully!')
+    
   } catch (error) {
-    errors.value.push('Failed to submit review. Please try again.')
+    console.error('Error submitting review:', error)
+    errors.value.push(error instanceof Error ? error.message : 'Failed to submit review. Please try again.')
   } finally {
     isSubmitting.value = false
   }

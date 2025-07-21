@@ -104,6 +104,20 @@ const formattedLastSeen = computed(() => {
   return 'Never'
 })
 
+const safeRatingAverage = computed(() => {
+  const rating = userProfile.value.stats?.rating_average
+  if (rating === null || rating === undefined) return 0
+  const numRating = Number(rating)
+  return isNaN(numRating) ? 0 : numRating
+})
+
+const safeDownloadsReceived = computed(() => {
+  const downloads = userProfile.value.stats?.downloads_received
+  if (downloads === null || downloads === undefined) return 0
+  const numDownloads = Number(downloads)
+  return isNaN(numDownloads) ? 0 : numDownloads
+})
+
 const loadUserProfile = async () => {
   isLoading.value = true
   try {
@@ -320,11 +334,11 @@ onMounted(() => {
                 <span class="stat-label">Reviews</span>
               </div>
               <div class="stat-item">
-                <span class="stat-number">{{ userProfile.stats.downloads_received?.toLocaleString() || '0' }}</span>
+                <span class="stat-number">{{ safeDownloadsReceived.toLocaleString() }}</span>
                 <span class="stat-label">Downloads</span>
               </div>
-              <div class="stat-item" v-if="userProfile.stats.rating_average > 0">
-                <span class="stat-number">{{ userProfile.stats.rating_average?.toFixed(1) || '0.0' }}</span>
+              <div class="stat-item" v-if="safeRatingAverage > 0">
+                <span class="stat-number">{{ safeRatingAverage.toFixed(1) }}</span>
                 <span class="stat-label">Rating</span>
               </div>
             </div>

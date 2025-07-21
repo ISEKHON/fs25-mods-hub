@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Mod, ModCategory } from '@/types'
-import { modsApi, categoriesApi } from '@/services/api'
+import { modsApi, categoriesApi, apiCall } from '@/services/api'
 
 export const useModsStore = defineStore('mods', () => {
   // State
@@ -77,6 +77,7 @@ export const useModsStore = defineStore('mods', () => {
         createdAt: formatDate(mod.created_at),
         updatedAt: formatDate(mod.updated_at),
         images: mod.images || mod.screenshots || [],
+        video_url: mod.video_url, // Add video URL field
         author: mod.author || {
           id: 'unknown',
           name: 'Unknown',
@@ -84,16 +85,16 @@ export const useModsStore = defineStore('mods', () => {
           isVerified: false
         },
         features: Array.isArray(mod.tags) ? mod.tags : [],
-        requirements: {
-          min: 'Farming Simulator 25',
-          recommended: 'Farming Simulator 25 with latest patch'
-        },
         changelog: [],
         pricing: {
           type: 'free' as const
         },
         reviews: [],
-        featured: mod.featured || false
+        featured: mod.featured || false,
+        downloadUrl: mod.download_url,
+        installationNotes: mod.installation_notes,
+        compatibility: mod.compatibility || [],
+        modData: mod.modData // Add modData field as well
       }))
       
       // Update pagination
@@ -116,6 +117,31 @@ export const useModsStore = defineStore('mods', () => {
       const response = await modsApi.getById(id)
       const mod = response.data || response // Handle both response formats
       
+      // Fetch reviews for this mod using apiCall
+      let reviews = []
+      try {
+        const reviewsData = await apiCall(`/reviews/mod/${id}`) as any
+        if (reviewsData && reviewsData.reviews) {
+          reviews = reviewsData.reviews.map((review: any) => ({
+            id: review.id,
+            userId: review.user_id || 'user-' + review.id,
+            userName: review.username || 'Anonymous',
+            userAvatar: review.user_avatar || '/default-avatar.svg',
+            rating: review.rating,
+            title: '', // Backend doesn't store title
+            comment: review.review_text || '',
+            createdAt: review.created_at,
+            updatedAt: review.updated_at,
+            helpful: review.helpful_count || 0,
+            notHelpful: 0, // Backend doesn't track this separately
+            verified: true,
+            version: '1.0.0'
+          }))
+        }
+      } catch (reviewError) {
+        console.error('Error fetching reviews:', reviewError)
+      }
+      
       // Transform and return single mod - using new API structure
       const transformedMod = {
         id: mod.id,
@@ -130,6 +156,7 @@ export const useModsStore = defineStore('mods', () => {
         createdAt: formatDate(mod.created_at),
         updatedAt: formatDate(mod.updatedAt || mod.updated_at),
         images: mod.images || mod.screenshots || [],
+        video_url: mod.video_url, // Add video URL field
         author: mod.author || {
           id: 'unknown',
           name: 'Unknown',
@@ -137,19 +164,16 @@ export const useModsStore = defineStore('mods', () => {
           isVerified: false
         },
         features: Array.isArray(mod.tags) ? mod.tags : [],
-        requirements: {
-          min: mod.requirements || 'Farming Simulator 25',
-          recommended: mod.requirements || 'Farming Simulator 25 with latest patch'
-        },
-        changelog: mod.changelog ? [mod.changelog] : [],
+        changelog: mod.changelog || '',
         pricing: mod.pricing || {
           type: 'free' as const
         },
-        reviews: mod.reviews || [],
+        reviews: reviews,
         featured: mod.featured || false,
         downloadUrl: mod.download_url,
         installationNotes: mod.installation_notes,
-        compatibility: mod.compatibility || []
+        compatibility: mod.compatibility || [],
+        modData: mod.modData // Add modData field as well
       }
 
       // Also add to the local mods array if not already there
@@ -243,16 +267,12 @@ export const useModsStore = defineStore('mods', () => {
         updatedAt: formatDate(mod.updated_at),
         images: parseImages(mod.screenshots ? mod.screenshots.join(',') : ''),
         author: {
-          id: mod.author_id || 'unknown',
-          name: mod.author || mod.author_name || 'Unknown',
-          avatar: mod.author_avatar || '/default-avatar.png',
-          isVerified: mod.author_verified || false
+          id: mod.author?.id || mod.author_id || 'unknown',
+          name: mod.author?.name || mod.author || mod.author_name || 'Unknown',
+          avatar: mod.author?.avatar || '/default-avatar.svg',
+          isVerified: mod.author?.isVerified || mod.author_verified || false
         },
         features: mod.features ? mod.features.split(',') : [],
-        requirements: {
-          min: 'Farming Simulator 25',
-          recommended: 'Farming Simulator 25 with latest patch'
-        },
         changelog: [],
         pricing: {
           type: 'free' as const
@@ -278,6 +298,17 @@ export const useModsStore = defineStore('mods', () => {
       console.error('Error fetching featured mods:', err)
     } finally {
       loading.value = false
+    }
+  }
+
+  async function refreshModReviews(modId: string) {
+    try {
+      // Re-fetch the mod to get updated reviews
+      const updatedMod = await fetchModById(modId)
+      return updatedMod
+    } catch (err) {
+      console.error('Error refreshing mod reviews:', err)
+      return null
     }
   }
 
@@ -310,6 +341,7 @@ export const useModsStore = defineStore('mods', () => {
     fetchModById,
     downloadMod,
     toggleFavorite,
+    refreshModReviews,
     initialize
   }
 })

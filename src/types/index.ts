@@ -13,14 +13,18 @@ export interface Mod {
   images: ModImage[]
   author: ModAuthor
   features: string[]
-  requirements: {
-    min: string
-    recommended: string
-  }
-  changelog?: ModChangelog[]
+  changelog?: ModChangelog[] | string
   pricing: ModPricing
   reviews?: ModReview[]
   featured?: boolean
+  video_url?: string
+  compatibility?: string[]
+  installation_notes?: string
+  known_issues?: string
+  credits?: string
+  downloadUrl?: string // Add downloadUrl field
+  installationNotes?: string // Add installationNotes field
+  modData?: string // JSON string containing additional mod metadata
 }
 
 export interface ModReview {
@@ -85,6 +89,7 @@ export interface Stats {
   modsPublished: number
   totalDownloads: string
   yearsActive: number
+  averageRating?: number
 }
 
 export interface Developer {

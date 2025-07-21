@@ -2,9 +2,11 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useModsStore } from '@/stores/mods-new'
+import { apiCall } from '@/services/api'
 import ModGallery from '@/components/mods/ModGallery.vue'
 import ModTabs from '@/components/mods/ModTabs.vue'
 import ModCard from '@/components/mods/ModCard.vue'
+import ReportForm from '@/components/mods/ReportForm.vue'
 
 const route = useRoute()
 const modsStore = useModsStore()
@@ -16,15 +18,11 @@ onMounted(async () => {
     await modsStore.initialize()
   }
   
-  // Try to fetch the specific mod if not found in store
-  if (!mod.value && route.params.id) {
-    const fetchedMod = await modsStore.fetchModById(route.params.id as string)
-    if (!fetchedMod) {
-      isLoading.value = false
-    }
-  } else {
-    isLoading.value = false
+  // Always fetch the specific mod to get latest data including reviews
+  if (route.params.id) {
+    await modsStore.fetchModById(route.params.id as string)
   }
+  isLoading.value = false
 })
 
 const isLoading = ref(true)
@@ -44,6 +42,36 @@ const activeTab = ref('features')
 const activeImageIndex = ref(0)
 const showPurchaseModal = ref(false)
 
+// Enhanced images array that includes video at first position if available
+const enhancedImages = computed(() => {
+  if (!mod.value) return []
+  
+  const images = [...(mod.value.images || [])]
+  
+  // Check multiple possible video fields
+  let videoUrl = mod.value.video_url
+  
+  // Try to get video from modData if not in main field
+  if (!videoUrl && mod.value.modData) {
+    try {
+      const parsedModData = JSON.parse(mod.value.modData)
+      videoUrl = parsedModData.video_url || parsedModData.videoLink
+    } catch (e) {
+      console.warn('Failed to parse modData:', e)
+    }
+  }
+  
+  // Add video at the first position if video URL exists
+  if (videoUrl) {
+    images.unshift({
+      type: 'video',
+      url: videoUrl
+    })
+  }
+  
+  return images
+})
+
 // Reset component state when route parameters change
 watch(() => route.params.id, async () => {
   isLoading.value = true
@@ -51,8 +79,8 @@ watch(() => route.params.id, async () => {
   activeImageIndex.value = 0
   showPurchaseModal.value = false
   
-  // Try to fetch the specific mod if not found in store
-  if (route.params.id && !modsStore.mods.find(m => m.id === route.params.id)) {
+  // Always fetch the specific mod to get latest reviews
+  if (route.params.id) {
     await modsStore.fetchModById(route.params.id as string)
   }
   isLoading.value = false
@@ -80,6 +108,57 @@ const isOnSale = computed(() => {
 
 const formatPrice = (price: number) => {
   return `₹${price.toFixed(2)}`
+}
+
+// Download functionality
+const isDownloading = ref(false)
+
+const handleDownload = async () => {
+  if (!mod.value || isDownloading.value) return
+
+  isDownloading.value = true
+  
+  try {
+    const data = await apiCall<{
+      success: boolean
+      data: {
+        download_url: string
+        title: string
+        version: string
+        file_size: number
+        redirect_message: string
+      }
+      message: string
+    }>(`/mods/${mod.value.id}/download`, {
+      method: 'POST'
+    })
+
+    if (data.success && data.data.download_url) {
+      // Update download count in UI
+      if (mod.value) {
+        mod.value.downloads = (mod.value.downloads || 0) + 1
+      }
+      
+      // Open download link in new tab
+      window.open(data.data.download_url, '_blank')
+    } else {
+      throw new Error('Download link not available')
+    }
+
+  } catch (error) {
+    console.error('Download error:', error)
+    alert(error instanceof Error ? error.message : 'Failed to download mod')
+  } finally {
+    isDownloading.value = false
+  }
+}
+
+// Report functionality
+const showReportForm = ref(false)
+
+const handleReportSubmitted = () => {
+  showReportForm.value = false
+  alert('Thank you for your report. It will be reviewed by our moderation team.')
 }
 </script>
 
@@ -126,7 +205,7 @@ const formatPrice = (price: number) => {
     <!-- Mod Header -->
     <div class="mod-header">
       <ModGallery 
-        :images="mod.images" 
+        :images="enhancedImages" 
         v-model:activeIndex="activeImageIndex" 
       />
       
@@ -224,8 +303,15 @@ const formatPrice = (price: number) => {
         </div>
         
         <div class="mod-actions">
-          <button v-if="!isPaid" class="btn mod-download-btn free">
-            <i class="fas fa-download"></i> Download Free
+          <button 
+            v-if="!isPaid" 
+            @click="handleDownload"
+            :disabled="isDownloading"
+            class="btn mod-download-btn free"
+          >
+            <i v-if="isDownloading" class="fas fa-spinner fa-spin"></i>
+            <i v-else class="fas fa-download"></i> 
+            {{ isDownloading ? 'Downloading...' : 'Download Free' }}
           </button>
           <div v-else class="paid-mod-purchase">
             <button @click="showPurchaseModal = true" class="btn mod-purchase-btn">
@@ -252,6 +338,9 @@ const formatPrice = (price: number) => {
           </div>
           <button class="mod-favorite-btn">
             <i class="fas fa-heart"></i> Add to Favorites
+          </button>
+          <button @click="showReportForm = true" class="mod-report-btn">
+            <i class="fas fa-flag"></i> Report
           </button>
         </div>
         
@@ -409,6 +498,15 @@ const formatPrice = (price: number) => {
       </RouterLink>
     </div>
   </div>
+
+  <!-- Report Form Modal -->
+  <ReportForm
+    v-if="showReportForm && mod"
+    :mod-id="mod.id"
+    :mod-title="mod.title"
+    @report-submitted="handleReportSubmitted"
+    @close="showReportForm = false"
+  />
 </template>
 
 <style scoped>
@@ -818,6 +916,31 @@ const formatPrice = (price: number) => {
 
 .mod-favorite-btn i {
   color: #e74c3c;
+}
+
+.mod-report-btn {
+  background: white;
+  border: 2px solid #f39c12;
+  color: #f39c12;
+  padding: 0.8rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: var(--transition);
+}
+
+.mod-report-btn:hover {
+  background: #f39c12;
+  color: white;
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+}
+
+.mod-report-btn i {
+  font-size: 1rem;
 }
 
 .mod-details {

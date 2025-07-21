@@ -6,6 +6,7 @@
   --primary-dark: #219653;
   --secondary: #f39c12;
   --accent: #3498db;
+  --danger-color: #dc3545;
   --dark: #1e272e;
   --darker: #171e25;
   --light: #f8f9fa;
@@ -17,6 +18,16 @@
   --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   --radius: 12px;
   --border: 1px solid rgba(0,0,0,0.05);
+  
+  /* Additional variables for components */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --border-color: #e0e0e0;
+  --text-primary: #333;
+  --text-secondary: #7f8c8d;
+  --success-color: #28a745;
+  --primary-color: #27ae60;
 }
 
 * {

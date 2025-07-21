@@ -50,13 +50,64 @@ const handleThumbnailError = (event: Event) => {
     }
   }
 }
+
+// Helper function to convert video URLs to embeddable format
+const getEmbedUrl = (url: string) => {
+  if (!url) return ''
+  
+  // YouTube URL patterns
+  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+  const youtubeMatch = url.match(youtubeRegex)
+  
+  if (youtubeMatch) {
+    return `https://www.youtube.com/embed/${youtubeMatch[1]}`
+  }
+  
+  // Vimeo URL patterns
+  const vimeoRegex = /vimeo\.com\/(\d+)/
+  const vimeoMatch = url.match(vimeoRegex)
+  
+  if (vimeoMatch) {
+    return `https://player.vimeo.com/video/${vimeoMatch[1]}`
+  }
+  
+  // For direct video files (mp4, webm, etc.), return as is
+  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+    return url
+  }
+  
+  // Default: assume it's a direct video URL
+  return url
+}
+
+const isEmbedVideo = (url: string) => {
+  return url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com')
+}
 </script>
 
 <template>
   <div class="mod-gallery">
     <div class="mod-main-image">
       <template v-if="images[activeIndex]?.type === 'video'">
-        <video controls :src="images[activeIndex].url" class="media-preview"></video>
+        <!-- Embedded videos (YouTube, Vimeo) -->
+        <iframe 
+          v-if="isEmbedVideo(images[activeIndex].url)"
+          :src="getEmbedUrl(images[activeIndex].url)"
+          class="media-preview video-embed"
+          frameborder="0"
+          allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        ></iframe>
+        <!-- Direct video files -->
+        <video 
+          v-else
+          controls 
+          :src="images[activeIndex].url" 
+          class="media-preview"
+          preload="metadata"
+        >
+          Your browser does not support the video tag.
+        </video>
       </template>
       <template v-else>
         <img 
@@ -142,6 +193,13 @@ const handleThumbnailError = (event: Event) => {
   z-index: 1;
   transition: transform 0.3s ease;
   border-radius: var(--radius);
+}
+
+.video-embed {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  object-fit: cover;
 }
 
 .mod-main-image:hover .media-preview {

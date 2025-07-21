@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ModReview } from '@/types'
 import { computed, ref } from 'vue'
+import { apiCall } from '@/services/api'
 
 const props = defineProps<{
   review: ModReview
@@ -22,7 +23,7 @@ const getStarClass = (starIndex: number) => {
   return starIndex <= props.review.rating ? 'fas fa-star filled' : 'fas fa-star'
 }
 
-const handleVote = (type: 'helpful' | 'notHelpful') => {
+const handleVote = async (type: 'helpful' | 'notHelpful') => {
   if (hasVoted.value && voteType.value === type) {
     // Remove vote if clicking the same button again
     hasVoted.value = false
@@ -31,10 +32,26 @@ const handleVote = (type: 'helpful' | 'notHelpful') => {
     // Add or change vote
     hasVoted.value = true
     voteType.value = type
+    
+    if (type === 'helpful') {
+      try {
+        // Call API to mark review as helpful using apiCall
+        const data = await apiCall(`/reviews/${props.review.id}/helpful`, {
+          method: 'POST'
+        }) as any
+        
+        if (data && data.helpful_count !== undefined) {
+          // Update the local helpful count
+          props.review.helpful = data.helpful_count
+        }
+      } catch (error) {
+        console.error('Error voting on review:', error)
+        // Revert the vote if API call failed
+        hasVoted.value = false
+        voteType.value = null
+      }
+    }
   }
-  
-  // TODO: Implement actual voting API call
-  console.log(`Voted ${type} for review ${props.review.id}`)
 }
 
 const helpfulCount = computed(() => {
@@ -62,7 +79,13 @@ const notHelpfulCount = computed(() => {
       <div class="reviewer-info">
         <div class="reviewer-avatar">
           <img 
-            v-if="review.userAvatar" 
+            v-if="review.userAvatar && review.userAvatar !== '/default-avatar.svg'" 
+            :src="review.userAvatar" 
+            :alt="review.userName"
+            class="avatar-image"
+          />
+          <img 
+            v-else-if="review.userAvatar === '/default-avatar.svg'"
             :src="review.userAvatar" 
             :alt="review.userName"
             class="avatar-image"

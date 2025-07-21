@@ -13,7 +13,7 @@ const showReviewForm = ref(false)
 
 const tabs = computed(() => [
   { id: 'features', label: 'Features' },
-  { id: 'requirements', label: 'Requirements' },
+  { id: 'notes', label: 'Notes' },
   { id: 'installation', label: 'Installation' },
   { id: 'changelog', label: 'Changelog' },
   { id: 'reviews', label: `Reviews (${props.mod.reviews?.length || 0})` }
@@ -45,12 +45,26 @@ const handleReviewSubmitted = (review: any) => {
   closeReviewForm()
 }
 
-const requirements = computed(() => [
-  { icon: 'laptop', title: 'Minimum Requirements', text: props.mod.requirements.min },
-  { icon: 'desktop', title: 'Recommended Requirements', text: props.mod.requirements.recommended },
-  { icon: 'gamepad', title: 'Supported Input', text: 'Keyboard + Mouse, Gamepad' },
-  { icon: 'code-branch', title: 'Compatibility', text: 'Works with all official maps' }
-])
+const notesData = computed(() => {
+  let notes = ''
+  
+  // Try to get notes from modData
+  if (props.mod.modData) {
+    try {
+      const parsedModData = JSON.parse(props.mod.modData)
+      notes = parsedModData.notes || parsedModData.description || parsedModData.details || ''
+    } catch (e) {
+      console.warn('Failed to parse modData for notes:', e)
+    }
+  }
+  
+  // Fallback to mod description or installation notes
+  if (!notes) {
+    notes = props.mod.installationNotes || props.mod.installation_notes || 'No additional notes available for this mod.'
+  }
+  
+  return notes
+})
 
 const sortedReviews = computed(() => {
   if (!props.mod.reviews) return []
@@ -105,19 +119,38 @@ const getPercentage = (count: number) => {
         </div>
       </div>
       
+      <!-- Compatibility Information -->
+      <div v-if="mod.compatibility && mod.compatibility.length > 0" class="compatibility-section">
+        <h3>Compatibility</h3>
+        <div class="compatibility-tags">
+          <span v-for="(tag, index) in mod.compatibility" :key="index" class="compatibility-tag">
+            <i class="fas fa-check"></i>
+            {{ tag }}
+          </span>
+        </div>
+      </div>
+      
       <h3>Detailed Description</h3>
       <div class="mod-description-content" v-html="mod.description"></div>
+      
+      <!-- Credits Section -->
+      <div v-if="mod.credits" class="credits-section">
+        <h3>Credits & Acknowledgments</h3>
+        <div class="credits-content">
+          <i class="fas fa-heart text-red"></i>
+          <pre>{{ mod.credits }}</pre>
+        </div>
+      </div>
     </div>
     
-    <div class="mod-tab-content" :class="{ active: activeTab === 'requirements' }">
-      <div class="mod-requirements">
-        <h3>System Requirements</h3>
-        <div class="requirements-grid">
-          <div v-for="req in requirements" :key="req.title" class="requirement-item">
-            <i class="fas" :class="`fa-${req.icon}`"></i>
-            <div>
-              <h4>{{ req.title }}</h4>
-              <p>{{ req.text }}</p>
+    <div class="mod-tab-content" :class="{ active: activeTab === 'notes' }">
+      <div class="mod-notes">
+        <h3>Additional Notes</h3>
+        <div class="notes-content">
+          <div class="notes-text">
+            <i class="fas fa-sticky-note text-primary"></i>
+            <div class="notes-body">
+              <pre>{{ notesData }}</pre>
             </div>
           </div>
         </div>
@@ -126,10 +159,28 @@ const getPercentage = (count: number) => {
     
     <div class="mod-tab-content" :class="{ active: activeTab === 'installation' }">
       <h3>Installation Instructions</h3>
+      
+      <!-- Custom installation notes from modData -->
+      <div v-if="mod.installation_notes" class="custom-installation-notes">
+        <div class="installation-notes-content">
+          <pre>{{ mod.installation_notes }}</pre>
+        </div>
+      </div>
+      
+      <!-- Default installation steps -->
       <div class="installation-steps">
         <div v-for="(step, index) in installationSteps" :key="index" class="installation-step">
           <div class="step-number">{{ index + 1 }}</div>
           <div class="step-content">{{ step }}</div>
+        </div>
+      </div>
+      
+      <!-- Known Issues section if available -->
+      <div v-if="mod.known_issues" class="known-issues-section">
+        <h3>Known Issues</h3>
+        <div class="known-issues-content">
+          <i class="fas fa-exclamation-triangle text-warning"></i>
+          <pre>{{ mod.known_issues }}</pre>
         </div>
       </div>
       
@@ -148,19 +199,31 @@ const getPercentage = (count: number) => {
     <div class="mod-tab-content" :class="{ active: activeTab === 'changelog' }">
       <div class="mod-changelog">
         <h3>Version History</h3>
-        <div v-for="(version, index) in mod.changelog || []" :key="index" class="changelog-item">
-          <div class="changelog-version">
-            <h4>Version {{ version.version }}</h4>
-            <span>{{ version.date }}</span>
-          </div>
-          <div class="changelog-changes">
-            <ul>
-              <li v-for="(change, i) in version.changes" :key="i">{{ change }}</li>
-            </ul>
+        
+        <!-- Handle string changelog (from modData) -->
+        <div v-if="typeof mod.changelog === 'string' && mod.changelog" class="changelog-text">
+          <pre>{{ mod.changelog }}</pre>
+        </div>
+        
+        <!-- Handle array changelog (structured format) -->
+        <div v-else-if="Array.isArray(mod.changelog) && mod.changelog.length > 0">
+          <div v-for="(version, index) in mod.changelog" :key="index" class="changelog-item">
+            <div class="changelog-version">
+              <h4>Version {{ version.version }}</h4>
+              <span>{{ version.date }}</span>
+            </div>
+            <div class="changelog-changes">
+              <ul>
+                <li v-for="(change, i) in version.changes" :key="i">{{ change }}</li>
+              </ul>
+            </div>
           </div>
         </div>
-        <div v-if="!mod.changelog?.length" class="no-changelog">
-          No changelog available for this mod.
+        
+        <!-- No changelog available -->
+        <div v-else class="no-changelog">
+          <i class="fas fa-info-circle"></i>
+          <p>No changelog available for this mod.</p>
         </div>
       </div>
     </div>
@@ -317,7 +380,7 @@ const getPercentage = (count: number) => {
   color: var(--text);
 }
 
-.mod-requirements {
+.mod-notes {
   background: white;
   border-radius: var(--radius);
   padding: 2rem;
@@ -325,35 +388,46 @@ const getPercentage = (count: number) => {
   margin-bottom: 2rem;
 }
 
-.mod-requirements h3 {
+.mod-notes h3 {
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
 }
 
-.requirements-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
+.notes-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.requirement-item {
+.notes-text {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(39, 174, 96, 0.05), rgba(39, 174, 96, 0.02));
+  border-radius: 8px;
+  border-left: 4px solid var(--primary);
 }
 
-.requirement-item i {
-  color: var(--secondary);
+.notes-text i {
+  color: var(--primary);
   font-size: 1.5rem;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
 }
 
-.requirement-item h4 {
-  margin-bottom: 0.3rem;
-  font-size: 1.1rem;
+.notes-body {
+  flex: 1;
 }
 
-.requirement-item p {
-  color: var(--text-light);
+.notes-body pre {
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .installation-steps {
@@ -641,6 +715,134 @@ const getPercentage = (count: number) => {
   transform: translateY(-1px);
 }
 
+/* ModData Enhancement Styles */
+.compatibility-section {
+  margin: 2rem 0;
+}
+
+.compatibility-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.compatibility-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.compatibility-tag i {
+  font-size: 0.75rem;
+}
+
+.credits-section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  border-left: 4px solid var(--primary);
+}
+
+.credits-content {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.credits-content pre {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #555;
+  line-height: 1.6;
+}
+
+.credits-content i {
+  color: #e74c3c;
+  font-size: 1.2rem;
+  margin-top: 0.2rem;
+}
+
+.custom-installation-notes {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  border-radius: 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.installation-notes-content pre {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #333;
+  line-height: 1.6;
+}
+
+.known-issues-section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+  border-radius: 12px;
+  border-left: 4px solid #f39c12;
+}
+
+.known-issues-content {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.known-issues-content pre {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #856404;
+  line-height: 1.6;
+}
+
+.known-issues-content i {
+  color: #f39c12;
+  font-size: 1.2rem;
+  margin-top: 0.2rem;
+}
+
+.changelog-text {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  border-left: 4px solid var(--secondary);
+}
+
+.changelog-text pre {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #333;
+  line-height: 1.6;
+}
+
+.text-warning {
+  color: #f39c12 !important;
+}
+
+.text-red {
+  color: #e74c3c !important;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .reviews-header {
@@ -707,10 +909,6 @@ const getPercentage = (count: number) => {
   .mod-features {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
-  
-  .requirements-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
 }
 
 @media (max-width: 768px) {
@@ -737,16 +935,7 @@ const getPercentage = (count: number) => {
     gap: 1.25rem;
   }
   
-  .requirements-grid {
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
-  }
-  
   .mod-feature {
-    gap: 0.75rem;
-  }
-  
-  .requirement-item {
     gap: 0.75rem;
   }
   
@@ -797,20 +986,14 @@ const getPercentage = (count: number) => {
     margin-bottom: 0.5rem;
   }
   
-  .requirements-grid {
-    gap: 1rem;
-  }
-  
-  .requirement-item {
+  .notes-text {
     flex-direction: column;
     text-align: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    background: rgba(0,0,0,0.02);
-    border-radius: 8px;
+    gap: 1rem;
+    padding: 1.5rem;
   }
   
-  .requirement-item i {
+  .notes-text i {
     font-size: 1.8rem;
     margin-bottom: 0.5rem;
   }

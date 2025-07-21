@@ -54,7 +54,7 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
       throw new Error(data.message || 'API call failed')
     }
 
-    return data.data
+    return data  // Return full response instead of just data.data
   } catch (error) {
     console.error(`API Error for ${endpoint}:`, error)
     throw error
@@ -201,8 +201,25 @@ export const modsApi = {
 
 // Developers API
 export const developersApi = {
-  async getAll(): Promise<any[]> {
-    return apiCall('/developers')
+  async getAll(params?: {
+    search?: string
+    sort?: string
+    order?: string
+    page?: number
+    limit?: number
+    featured?: boolean
+  }): Promise<any> {
+    const queryParams = new URLSearchParams()
+    
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.sort) queryParams.append('sort', params.sort)
+    if (params?.order) queryParams.append('order', params.order)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.featured) queryParams.append('featured', 'true')
+
+    const endpoint = `/developers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    return apiCall(endpoint)
   },
 
   async getById(id: string): Promise<any> {

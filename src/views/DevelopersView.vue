@@ -1,11 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useDevelopersStore } from '@/stores/developers'
 
 const developersStore = useDevelopersStore()
 const searchQuery = ref('')
 const selectedRole = ref('all')
 const sortBy = ref('featured')
+
+// Initialize store on component mount
+onMounted(async () => {
+  if (developersStore.developers.length === 0) {
+    await developersStore.fetchDevelopers({ sort: sortBy.value })
+  }
+})
+
+// Watch for sort changes and refetch
+watch(sortBy, async (newSort) => {
+  await developersStore.fetchDevelopers({ 
+    sort: newSort,
+    search: searchQuery.value || undefined,
+    featured: selectedRole.value === 'featured' ? true : undefined
+  })
+})
 
 // Get developers from store and compute filtered/sorted results
 const filteredDevelopers = computed(() => {
@@ -18,7 +34,11 @@ const filteredDevelopers = computed(() => {
   
   // Filter by role
   if (selectedRole.value !== 'all') {
-    result = result.filter(dev => dev.role === selectedRole.value)
+    if (selectedRole.value === 'featured') {
+      result = result.filter(dev => dev.featured)
+    } else {
+      result = result.filter(dev => dev.role === selectedRole.value)
+    }
   }
   
   // Sort results
@@ -27,7 +47,19 @@ const filteredDevelopers = computed(() => {
   )
 })
 
-const uniqueRoles = computed(() => developersStore.getUniqueRoles())
+const uniqueRoles = computed(() => {
+  const roles = ['featured', ...developersStore.getUniqueRoles]
+  return Array.from(new Set(roles))
+})
+
+// Handle search
+const handleSearch = async () => {
+  await developersStore.fetchDevelopers({ 
+    sort: sortBy.value,
+    search: searchQuery.value || undefined,
+    featured: selectedRole.value === 'featured' ? true : undefined
+  })
+}
 </script>
 
 <template>
@@ -51,7 +83,7 @@ const uniqueRoles = computed(() => developersStore.getUniqueRoles())
             <i class="fas fa-search"></i>
             <input 
               v-model="searchQuery" 
-              @input=""
+              @input="handleSearch"
               type="text" 
               placeholder="Search modders, developers, and creators..."
               class="search-input"
@@ -59,18 +91,21 @@ const uniqueRoles = computed(() => developersStore.getUniqueRoles())
           </div>
           
           <div class="role-filter">
-            <select v-model="selectedRole" @change="" class="role-select">
+            <select v-model="selectedRole" @change="handleSearch" class="role-select">
               <option value="all">All Roles</option>
-              <option v-for="role in uniqueRoles" :key="role" :value="role">{{ role }}</option>
+              <option v-for="role in uniqueRoles" :key="role" :value="role">
+                {{ role === 'featured' ? 'Featured' : role }}
+              </option>
             </select>
           </div>
           
           <div class="sort-filter">
-            <select v-model="sortBy" @change="" class="sort-select">
+            <select v-model="sortBy" class="sort-select">
               <option value="featured">Featured First</option>
               <option value="name">Name (A-Z)</option>
               <option value="mods">Most Mods</option>
               <option value="downloads">Most Downloads</option>
+              <option value="rating">Highest Rated</option>
             </select>
           </div>
         </div>
@@ -80,7 +115,31 @@ const uniqueRoles = computed(() => developersStore.getUniqueRoles())
     <!-- Developers Grid -->
     <section class="developers-section">
       <div class="container">
-        <div class="developers-grid">
+        <!-- Loading State -->
+        <div v-if="developersStore.loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading developers...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="developersStore.error" class="error-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Failed to load developers</h3>
+          <p>{{ developersStore.error }}</p>
+          <button @click="developersStore.fetchDevelopers()" class="retry-btn">
+            <i class="fas fa-redo"></i> Try Again
+          </button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="filteredDevelopers.length === 0" class="empty-state">
+          <i class="fas fa-users"></i>
+          <h3>No developers found</h3>
+          <p>Try adjusting your search criteria or browse all developers.</p>
+        </div>
+
+        <!-- Developers Grid -->
+        <div v-else class="developers-grid">
           <div 
             v-for="developer in filteredDevelopers" 
             :key="developer.id"
@@ -130,6 +189,13 @@ const uniqueRoles = computed(() => developersStore.getUniqueRoles())
                 <div>
                   <span class="stat-number">{{ developer.stats.totalDownloads }}</span>
                   <span class="stat-label">Downloads</span>
+                </div>
+              </div>
+              <div class="stat-item">
+                <i class="fas fa-star"></i>
+                <div>
+                  <span class="stat-number">{{ developer.stats.averageRating || '0.0' }}</span>
+                  <span class="stat-label">Rating</span>
                 </div>
               </div>
               <div class="stat-item">
@@ -787,5 +853,69 @@ const uniqueRoles = computed(() => developersStore.getUniqueRoles())
   .developer-card {
     padding: 1rem;
   }
+}
+
+/* Loading, Error, and Empty States */
+.loading-state,
+.error-state,
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-light);
+}
+
+.loading-state .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-state i,
+.empty-state i {
+  font-size: 3rem;
+  color: var(--primary);
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.error-state h3,
+.empty-state h3 {
+  font-size: 1.5rem;
+  color: var(--darker);
+  margin-bottom: 0.5rem;
+}
+
+.error-state p,
+.empty-state p {
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.retry-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.retry-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
 }
 </style>

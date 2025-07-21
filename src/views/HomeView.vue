@@ -9,6 +9,18 @@ const featuredMods = computed(() => modsStore.featuredMods)
 const categories = computed(() => modsStore.categories)
 const totalMods = computed(() => modsStore.totalMods)
 
+// Calculate total downloads from all mods
+const totalDownloads = computed(() => {
+  const total = modsStore.mods.reduce((sum, mod) => sum + (mod.downloads || 0), 0)
+  if (total >= 1000000) {
+    return `${Math.floor(total / 100000) / 10}M+`
+  } else if (total >= 1000) {
+    return `${Math.floor(total / 100) / 10}K+`
+  } else {
+    return `${total}+`
+  }
+})
+
 // Fetch featured mods when component mounts
 onMounted(async () => {
   if (modsStore.categories.length === 0) {
@@ -24,7 +36,7 @@ const heroButtons = [
 
 const stats = computed(() => [
   { number: `${totalMods.value || 0}+`, label: 'Mods Available' },
-  { number: '524K+', label: 'Downloads' },
+  { number: totalDownloads.value, label: 'Downloads' },
   { number: '24/7', label: 'Active Support' }
 ])
 </script>

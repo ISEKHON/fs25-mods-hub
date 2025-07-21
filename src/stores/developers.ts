@@ -1,54 +1,99 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { Developer } from '@/types'
+import { developersApi } from '@/services/api'
 
 export const useDevelopersStore = defineStore('developers', () => {
-  const developers = ref<Developer[]>([
-    {
-      id: 1,
-      name: 'SEKHON',
-      role: 'Platform Owner & Lead Developer',
-      avatar: 'https://cdn.discordapp.com/avatars/442551893638512660/565c937ec6f47af7e5cc553d274f4a90.webp',
-      bio: 'Passionate mod creator specializing in detailed vehicle modifications and realistic farming equipment for FS25.',
-      specialties: ['Platform Development', 'Mod Creator', 'Community Management'],
-      contact: {
-        email: 'jagdeepsekhon101@gmail.com',
-        telegram: '@MrCode403',
-        discord: 'FS25ModsHub#0001'
-      },
-      stats: {
-        modsPublished: 150,
-        totalDownloads: '2.5M',
-        yearsActive: 3
-      },
-      featured: true
-    }, 
-    {
-      id: 5,
-      name: 'Dhillxn',
-      role: 'Modder & Community Manager',
-      avatar: 'https://i.ibb.co/GQXHq1f0/dhillon.png',
-      bio: 'modding enthusiast with a passion for community engagement.',
-      specialties: ['Mods converter'],
-      contact: {
-        email: 'maps@cropmaster.dev',
-        discord: 'CropMaster#5678'
-      },
-      stats: {
-        modsPublished: 12,
-        totalDownloads: '280K',
-        yearsActive: 1
-      },
-      featured: true
-    }
-  ])
+  const developers = ref<Developer[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const pagination = ref({
+    currentPage: 1,
+    totalPages: 1,
+    totalDevelopers: 0,
+    hasNextPage: false,
+    hasPrevPage: false
+  })
 
-  const getFeaturedDevelopers = () => {
-    return developers.value.filter(dev => dev.featured)
+  // Fetch developers from API
+  const fetchDevelopers = async (params: {
+    search?: string
+    sort?: string
+    order?: string
+    page?: number
+    limit?: number
+    featured?: boolean
+  } = {}) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await developersApi.getAll(params)
+      
+      if (response.success) {
+        developers.value = response.data.developers.map(transformDeveloper)
+        pagination.value = response.data.pagination
+      } else {
+        throw new Error(response.message || 'Failed to fetch developers')
+      }
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch developers'
+      console.error('Error fetching developers:', err)
+    } finally {
+      loading.value = false
+    }
   }
 
+  // Fetch developer by ID
+  const fetchDeveloperById = async (id: string): Promise<Developer | null> => {
+    try {
+      const response = await developersApi.getById(id)
+      
+      if (response.success) {
+        return transformDeveloper(response.data)
+      } else {
+        throw new Error(response.message || 'Developer not found')
+      }
+    } catch (err: any) {
+      console.error('Error fetching developer:', err)
+      return null
+    }
+  }
+
+  // Transform API response to match frontend Developer interface
+  const transformDeveloper = (apiDeveloper: any): Developer => {
+    return {
+      id: parseInt(apiDeveloper.id) || Math.random(),
+      name: apiDeveloper.name,
+      role: apiDeveloper.role,
+      avatar: apiDeveloper.avatar,
+      bio: apiDeveloper.bio,
+      specialties: apiDeveloper.specialties || [],
+      contact: {
+        email: apiDeveloper.contact?.email || '',
+        discord: apiDeveloper.contact?.discord || '',
+        telegram: apiDeveloper.contact?.telegram || ''
+      },
+      stats: {
+        modsPublished: apiDeveloper.stats.modsPublished,
+        totalDownloads: apiDeveloper.stats.totalDownloads,
+        yearsActive: apiDeveloper.stats.yearsActive,
+        averageRating: parseFloat(apiDeveloper.stats.averageRating) || 0
+      },
+      featured: apiDeveloper.featured || false,
+      joinedDate: apiDeveloper.joinedDate
+    }
+  }
+
+  // Computed getters for compatibility with existing component
+  const getFeaturedDevelopers = computed(() => {
+    return developers.value.filter(dev => dev.featured)
+  })
+
   const getDevelopersByRole = (role: string) => {
-    return developers.value.filter(dev => dev.role.toLowerCase().includes(role.toLowerCase()))
+    return developers.value.filter(dev => 
+      dev.role.toLowerCase().includes(role.toLowerCase())
+    )
   }
 
   const getDeveloperById = (id: number) => {
@@ -78,27 +123,44 @@ export const useDevelopersStore = defineStore('developers', () => {
       case 'downloads':
         // Convert download strings to numbers for comparison
         const getDownloadNumber = (str: string) => {
-          const num = parseFloat(str.replace(/[MK]/g, ''))
+          const num = parseFloat(str.replace(/[MK,]/g, ''))
           return str.includes('M') ? num * 1000000 : str.includes('K') ? num * 1000 : num
         }
-        return sorted.sort((a, b) => getDownloadNumber(b.stats.totalDownloads) - getDownloadNumber(a.stats.totalDownloads))
+        return sorted.sort((a, b) => 
+          getDownloadNumber(b.stats.totalDownloads) - getDownloadNumber(a.stats.totalDownloads)
+        )
+      case 'rating':
+        return sorted.sort((a, b) => 
+          (b.stats.averageRating || 0) - (a.stats.averageRating || 0)
+        )
       default:
         return sorted
     }
   }
 
-  const getUniqueRoles = () => {
+  const getUniqueRoles = computed(() => {
     const roles = developers.value.map(dev => dev.role)
     return Array.from(new Set(roles))
+  })
+
+  // Initialize store
+  const init = async () => {
+    await fetchDevelopers({ sort: 'featured' })
   }
 
   return { 
-    developers, 
-    getFeaturedDevelopers, 
+    developers,
+    loading,
+    error,
+    pagination,
+    fetchDevelopers,
+    fetchDeveloperById,
+    getFeaturedDevelopers,
     getDevelopersByRole, 
     getDeveloperById,
     searchDevelopers,
     sortDevelopers,
-    getUniqueRoles
+    getUniqueRoles,
+    init
   }
 })
